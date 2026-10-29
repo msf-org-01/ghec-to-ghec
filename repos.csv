@@ -1,0 +1,4 @@
+source_org,source_repo,repo_url,repo_size_MB,target_org,target_repo,target_repo_visibility
+bh-org-ent-02,ado-1,https://github.com/bh-org-ent-02/ado-1,0.12,msf-org-01,ado-1,private
+bh-org-ent-02,ado-2,https://github.com/bh-org-ent-02/ado-2,0.12,msf-org-01,ado-2,private
+bh-org-ent-02,ado-3,https://github.com/bh-org-ent-02/ado-3,0.12,msf-org-01,ado-3,private
