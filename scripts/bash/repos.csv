@@ -1,0 +1,3 @@
+source_org,source_repo,repo_url,repo_size_MB,target_org,target_repo,target_repo_visibility
+bh-org-ent-01,ado-to-gh-demo-2,https://github.com/bh-org-ent-01/ado-to-gh-demo-2,0.12,jaison-elm-org,ado-3,private
+bh-org-ent-01,ado-to-gh-demo-1,https://github.com/bh-org-ent-01/ado-to-gh-demo-1,0.12,jaison-elm-org,ado-4,private
