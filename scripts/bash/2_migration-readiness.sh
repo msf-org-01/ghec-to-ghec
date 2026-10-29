@@ -27,6 +27,7 @@ declare -A repo_results
 # Read CSV file
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 csv_path="$script_dir/repos.csv"
+csv_path="${CSV_FILE:-$csv_path}"
 if [[ ! -f "$csv_path" ]]; then
   echo "CSV file $csv_path not found. Exiting..."
   exit 1
