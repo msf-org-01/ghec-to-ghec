@@ -260,6 +260,8 @@ jobs:
 
       - name: Run pre-migration checks
         shell: bash
+        env:
+          CSV_FILE: ${{ inputs.csv_path }}
         run: |
           set -euo pipefail
           ./scripts/bash/2_migration-readiness.sh | tee precheck.log
@@ -281,13 +283,15 @@ jobs:
       - name: Publish pre-validation repo-wise summary
         if: always()
         shell: bash
+        env:
+          CSV_FILE: ${{ inputs.csv_path }}
         run: |
           python3 - <<'PY'
           import csv, os, re
           from pathlib import Path
 
           pre = Path("precheck.log")
-          csv_path = Path("scripts/bash/repos.csv")
+          csv_path = Path(os.environ["CSV_FILE"])
           summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
 
           def append(md: str):
@@ -366,7 +370,7 @@ jobs:
           name: stage1-precheck-${{ github.run_id }}
           path: |
             precheck.log
-            scripts/bash/repos.csv
+            ${{ inputs.csv_path }}
           if-no-files-found: warn
 
   # ------------------------------------------------------------
@@ -430,7 +434,7 @@ jobs:
           set -euo pipefail
           ./scripts/bash/3_migration.sh \
             --max-concurrent "${{ inputs.max_concurrent }}" \
-            --csv "scripts/bash/repos.csv" \
+            --csv "${{ inputs.csv_path }}" \
             --output repos_with_status.csv \
             | tee migration.log
 
