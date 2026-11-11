@@ -2,17 +2,17 @@
 
 An operational framework for planning, executing, and validating **GitHub Enterprise Cloud (GHEC)** migrations with **GitHub Enterprise Importer (GEI)** and GitHub Actions. The solution provides two independently triggered workflows: **repository-to-repository migration** and **organization-to-organization migration**. It supports standard GitHub.com and GitHub Enterprise Cloud with Data Residency (GHEC-DR) endpoints, subject to the scenario-specific constraints below.
 
-> **Document scope:** This guide describes the supplied `ghec-to-ghec-repo.yaml` and `ghec-to-ghec-org.yml` workflows and the repository scripts referenced by the repository workflow. It does not assert that a customer migration has been successfully completed. Perform a controlled pilot and review its evidence before production rollout.
+> **Document scope:** This guide describes the supplied `ghec-to-ghec-repo-migration.yaml` and `ghec-to-ghec-org.yml` workflows and the repository scripts referenced by the repository workflow. It does not assert that a customer migration has been successfully completed. Perform a controlled pilot and review its evidence before production rollout.
 
 ## 1. Solution at a glance
 
 | Capability | Repository migration workflow | Organization migration workflow |
 |---|---|---|
-| Entry point | `ghec-to-ghec-repo.yaml` | `ghec-to-ghec-org.yml` |
+| Entry point | `ghec-to-ghec-repo-migration.yaml` | `ghec-to-ghec-org.yml` |
 | Initiation | Manual GitHub Actions dispatch | Manual GitHub Actions dispatch |
 | Pre-migration checks | Scenario, credentials, CSV, repository readiness | Scenario, credentials, source organization, target name availability |
 | Approval | `migration-approval` before Stage 2 | `migration-approval` before Stage 2 |
-| Migration operation | `gh gei migrate-repo` via `scripts/3_migration.sh` | `gh gei migrate-org` |
+| Migration operation | `gh gei migrate-repo` via `scripts/bash/3_migration.sh` | `gh gei migrate-org` |
 | Post-migration checks | Repository branches and commit SHAs via script | Organization accessibility and repository inventory/metadata parity |
 | Additional configuration transfer | Organization, repository and environment **Actions variables** (Stage 4) | Not implemented in the supplied organization workflow |
 | Execution evidence | Job summaries, CSV outputs, migration/validation logs, artifacts | Job summaries, migration logs, JSON and CSV validation artifacts |
@@ -28,7 +28,7 @@ An operational framework for planning, executing, and validating **GitHub Enterp
 | `Non-EMU GHEC -> EMU GHEC-DR` | Standard GitHub.com | GHEC-DR tenant | Default `https://api.github.com` | Tenant DR API |
 | `Non-EMU GHEC -> EMU GHEC` | Standard GitHub.com | Standard GitHub.com | Default `https://api.github.com` | Default `https://api.github.com` |
 | `EMU GHEC -> EMU GHEC-DR` | Standard GitHub.com | GHEC-DR tenant | Default `https://api.github.com` | Tenant DR API |
-| `GHEC-DR -> GHEC-DR` | GHEC-DR tenant | GHEC-DR tenant | Source tenant DR API | Target tenant DR API |
+| `GHEC-DR (Source Enterprise) -> GHEC-DR (Target Enterprise)` | GHEC-DR tenant | GHEC-DR tenant | Source tenant DR API | Target tenant DR API |
 
 The fourth scenario is present **only in the supplied repository workflow**. A dropdown selection identifies the intended scenario and triggers validation; it does **not** automatically provision endpoints or credentials.
 
@@ -47,7 +47,7 @@ The fourth scenario is present **only in the supplied repository workflow**. A d
 ### Repository workflow — four stages
 
 ```text
-Source inventory and target mapping (scripts/repos.csv)
+Source inventory and target mapping (scripts/bash/repos.csv)
                      |
                      v
 Stage 1 — Pre-migration validation and readiness checks
@@ -98,10 +98,10 @@ The repository workflow expects the following script paths. Ensure the files exi
 ```text
 .github/
 └── workflows/
-    ├── ghec-to-ghec-repo.yaml
-    └── ghec-to-ghec-org.yml
+    ├── ghec-to-ghec-repo-migration.yaml
+    └── ghec-to-ghec-org-migration.yaml
 
-scripts/
+scripts/bash/
 ├── 1_inventory-report.sh
 ├── 2_migration-readiness.sh
 ├── 3_migration.sh
@@ -112,7 +112,7 @@ scripts/
 README.md
 ```
 
-The layout above is the **recommended committed layout**. Workflow files were supplied as `ghec-to-ghec-repo.yaml` and `ghec-to-ghec-org.yml`; place them under `.github/workflows/` to make them available in GitHub Actions. The five scripts are referenced by the existing README/workflow, but were **not included in this documentation review**; verify their current implementations before production execution.
+The layout above is the **recommended committed layout**. Workflow files were supplied as `ghec-to-ghec-repo-migration.yaml` and `ghec-to-ghec-org.yml`; place them under `.github/workflows/` to make them available in GitHub Actions. The repository migration framework uses five Bash scripts for inventory generation, pre-migration readiness checks, repository migration, post-migration validation, and GitHub Actions variables migration. Ensure the scripts are validated against the selected migration scenario before production execution.
 
 | Component | Responsibility |
 |---|---|
@@ -121,8 +121,8 @@ The layout above is the **recommended committed layout**. Workflow files were su
 | `3_migration.sh` | Executes GEI repository migrations, concurrency and CSV mapping |
 | `4_post-migration-validation.sh` | Compares source and target branches and commit SHAs |
 | `5_variables-migration.sh` | Transfers supported organization, repository and environment Actions variables |
-| `ghec-to-ghec-repo.yaml` | Orchestrates four repository stages and artifact collection |
-| `ghec-to-ghec-org.yml` | Orchestrates three organization stages and artifact collection |
+| `ghec-to-ghec-repo-migration.yaml` | Orchestrates four repository stages and artifact collection |
+| `ghec-to-ghec-org-migration.yaml` | Orchestrates three organization stages and artifact collection |
 
 ## 5. Prerequisites and access governance
 
@@ -176,10 +176,10 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 Generate inventory separately, where the script is available:
 
 ```bash
-./scripts/1_inventory-report.sh
+./scripts/bash/1_inventory-report.sh
 ```
 
-Prepare and commit `scripts/repos.csv` with the approved target mappings. The documented migration format is:
+Prepare and commit `scripts/bash/repos.csv` with the approved target mappings. The documented migration format is:
 
 ```csv
 source_org,source_repo,repo_url,repo_size_MB,target_org,target_repo,target_repo_visibility
@@ -207,7 +207,7 @@ Open **Actions → `ghec-to-ghec-repo-migration-framework` → Run workflow** an
 |---|---|---|
 | `migration_scenario` | No default shown | Select the exact source/target topology |
 | `runner` | `ubuntu-latest` | Use a prevalidated runner; for self-hosted supply a JSON label array |
-| `csv_path` | `scripts/repos.csv` | Path checked by Stage 1; see important limitation below |
+| `csv_path` | `scripts/bash/repos.csv` | Path checked by Stage 1; see important limitation below |
 | `max_concurrent` | `10` | Choose 1 for a pilot; raise only after observing capacity and results |
 | `run_pre_validation` | `true` | Normally leave enabled |
 | `run_migration` | `true` | Controls GEI migration execution |
@@ -220,16 +220,16 @@ Example self-hosted runner selector:
 ["self-hosted","linux","x64","ghec-to-ghec-migration"]
 ```
 
-**CSV-path limitation in the supplied workflow:** Stage 1 checks `inputs.csv_path`, but Stage 2 explicitly invokes `3_migration.sh` with `--csv "scripts/repos.csv"`; the pre-validation summary parser also reads that fixed path. For reliable operation **use and commit `scripts/repos.csv`** unless the workflow is separately modified and tested to honor another path end to end.
+**CSV-path limitation in the supplied workflow:** Stage 1 checks `inputs.csv_path`, but Stage 2 explicitly invokes `3_migration.sh` with `--csv "scripts/bash/repos.csv"`; the pre-validation summary parser also reads that fixed path. For reliable operation **use and commit `scripts/bash/repos.csv`** unless the workflow is separately modified and tested to honor another path end to end.
 
 ### Step 4 — Review each stage
 
 | Stage | Execution | Evidence and acceptance focus |
 |---|---|---|
 | **1 — Readiness** | Validates scenario, PAT authentication, CSV and repository readiness | Review active PRs, running workflows, open issues, and readiness summary |
-| **2 — Migration** | Runs `scripts/3_migration.sh` in parallel using GEI | Inspect `repos_with_status.csv`, migration logs and per-repository outcomes |
-| **3 — Post-validation** | Runs `scripts/4_post-migration-validation.sh` | Review branch-count comparisons, branch-level SHA mismatches and exceptions |
-| **4 — Variables** | Runs `scripts/5_variables-migration.sh` | Confirm supported org/repo/environment variables, visibility and access as applicable |
+| **2 — Migration** | Runs `scripts/bash/3_migration.sh` in parallel using GEI | Inspect `repos_with_status.csv`, migration logs and per-repository outcomes |
+| **3 — Post-validation** | Runs `scripts/bash/4_post-migration-validation.sh` | Review branch-count comparisons, branch-level SHA mismatches and exceptions |
+| **4 — Variables** | Runs `scripts/bash/5_variables-migration.sh` | Confirm supported org/repo/environment variables, visibility and access as applicable |
 
 **Acceptance rule:** A green GitHub Actions job is not a substitute for checking per-repository status and validation artifacts. The workflow invokes a separate shell script whose exact exit-code handling was not included in the supplied references. Sign off only after inspecting evidence for **all** intended repositories and resolving exceptions.
 
@@ -276,7 +276,7 @@ The bracketed argument above is **illustrative** and is supplied only for a DR t
 
 | Workflow/stage | Principal files | Artifact naming pattern |
 |---|---|---|
-| Repository — Stage 1 | `precheck.log`, `scripts/repos.csv` | `stage1-precheck-<run_id>` |
+| Repository — Stage 1 | `precheck.log`, `scripts/bash/repos.csv` | `stage1-precheck-<run_id>` |
 | Repository — Stage 2 | `migration.log`, `repos_with_status.csv`, `migration-*.txt`, `octoshift-logs.tgz` | `stage2-migration-<run_id>` |
 | Repository — Stage 3 | `post_validation.log`, `validation-log-*.txt`, `validation-*.json` | `stage3-postvalidation-<run_id>` |
 | Repository — Stage 4 | `vars_migration.log`, `repos_with_status.csv` | `stage4-vars-migration-<run_id>` |
@@ -300,7 +300,7 @@ Record the change identifier, workflow run URL and run ID, scenario, source and 
 | GitHub.com source archive request goes to target DR API | GEI source/target routing | Check executed arguments, inherited `GH_SOURCE_API_URL`, extension version and logs; do not assume a valid PAT fixes routing |
 | DR target is treated as GitHub.com | Missing/wrong `TARGET_API_URL` secret | Verify the selected scenario and destination API value |
 | Target organization already exists | Organization name availability | Select an unused destination name or revisit the approved target design; the org workflow does not migrate into an existing org |
-| CSV not found or wrong repositories processed | Fixed CSV path in Stage 2 | Ensure the intended mapping is committed at `scripts/repos.csv` |
+| CSV not found or wrong repositories processed | Fixed CSV path in Stage 2 | Ensure the intended mapping is committed at `scripts/bash/repos.csv` |
 | Repository migration job green but CSV shows failures | Script status propagation | Inspect `repos_with_status.csv` and GEI logs; treat failed repositories as unresolved regardless of job color |
 | Repository post-validation mismatch | Branch or commit differences | Compare source/target branch names and SHAs and document exceptions |
 | Organization post-validation mismatch | Repository inventory/metadata | Inspect `repository-validation.csv` and `org-post-migration-validation.json` |
@@ -317,7 +317,7 @@ The supplied workflows provide automation and evidence, but the following distin
 3. **Organization creation:** `migrate-org` creates a new destination organization; an already-existing destination is rejected by the workflow. Equal source/target names are permitted by input validation, subject to destination availability.
 4. **Variable migration:** Repository Stage 4 targets GitHub Actions **variables** at organization, repository and environment levels. It does not claim to migrate Actions **secrets**, environment protection rules or every organization policy.
 5. **Validation depth:** Repository post-validation is described by the original README as branch/SHA checks. Organization post-validation performs organization accessibility and repository metadata comparisons, **not** a complete data-integrity audit.
-6. **CSV input:** The repository workflow exposes `csv_path`, but Stage 2 uses `scripts/repos.csv` explicitly. Keep this path consistent.
+6. **CSV input:** The repository workflow exposes `csv_path`, but Stage 2 uses `scripts/bash/repos.csv` explicitly. Keep this path consistent.
 7. **Status propagation:** The repository workflow's success condition depends on the migration script exit code; verify row-level results before declaring completion.
 8. **Version and environment:** GEI behavior can change across extension versions. Validate the installed version and pilot the selected scenario; the supplied YAML installs the extension without pinning a specific version.
 9. **Source DR organization support:** The organization workflow's source checks and post-validation are hardcoded to `https://api.github.com`; do not use it for a DR source without an independently designed and tested extension.
@@ -332,7 +332,7 @@ The supplied workflows provide automation and evidence, but the following distin
 - [ ] Confirm migration eligibility, PAT permissions, SSO/enterprise authorization and runner connectivity.
 - [ ] Configure `SOURCE_PAT`, `TARGET_PAT` and required DR API URL secrets.
 - [ ] Confirm `migration-approval` environment and required reviewers.
-- [ ] For repository migration, generate, review and commit `scripts/repos.csv`.
+- [ ] For repository migration, generate, review and commit `scripts/bash/repos.csv`.
 - [ ] For organization migration, verify target enterprise and target organization name availability.
 - [ ] Validate the committed scripts and GEI CLI behavior for the chosen scenario.
 - [ ] Run a single-repository or nonproduction pilot and review the full migration evidence.
