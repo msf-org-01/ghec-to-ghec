@@ -122,7 +122,7 @@ log_info "Validating organization '$ORG'..."
 validate_org
 
 # Keep old header exactly same
-echo "source_org,source_repo,repo_url,repo_size_MB" > "$OUT_FILE"
+echo "source_org,source_repo,repo_url,repo_size_MB,target_org,target_repo,target_repo_visibility" > "$OUT_FILE"
 
 url="${API_BASE}/orgs/${ORG}/repos?per_page=100&type=all"
 repo_count=0
@@ -150,7 +150,17 @@ while [[ -n "${url}" ]]; do
   done < <(
     jq -r '
       .[] |
-      "\(.owner.login),\(.name),\(.html_url // ""),\((.size / 1024) | tonumber | . * 100 | round / 100)"
+      [
+        .owner.login,
+        .name,
+        (.html_url // ""),
+        ((.size / 1024) * 100 | round / 100),
+        .owner.login,
+        .name,
+        (if .visibility == "public" then "public"
+          elif .visibility == "internal" then "internal"
+          else "private" end)
+      ] | @csv     
     ' "$body_file"
   )
 
