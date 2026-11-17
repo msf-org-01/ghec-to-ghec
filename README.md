@@ -40,6 +40,42 @@ The fourth scenario is present **only in the supplied repository workflow**. A d
 | `Non-EMU GHEC -> EMU GHEC` | Standard GitHub.com | Standard GitHub.com |
 | `EMU GHEC -> EMU GHEC-DR` | Standard GitHub.com | GHEC-DR tenant |
 
+### 2.3 Organization Naming and Uniqueness Considerations
+
+Organization naming requirements vary depending on the source and target GitHub Enterprise Cloud environments. Validate the destination organization name before initiating migration.
+
+| Migration Scenario | Organization Naming Behavior |
+|---|---|
+| Non-EMU GHEC → EMU GHEC | Organization names must be globally unique on `github.com`. The same organization name cannot exist simultaneously in the source and target enterprises. |
+| GHEC → GHEC-DR | The same organization name can exist across standard GHEC and a separate GHEC-DR tenant. |
+| GHEC-DR → GHEC-DR (Different Tenants) | The same organization name can be used across different DR tenants. |
+| GHEC-DR → GHEC-DR (Same Tenant) | Organization names must be unique within the same DR tenant. |
+
+**Organization Name Reuse Considerations**
+
+- Renaming the source organization may be considered when the original organization name is required at the target.
+- Renamed or deleted organization names are not guaranteed to become immediately available.
+- Deleted organization names may remain unavailable for up to 90 days.
+- Always verify name availability in the destination environment before proceeding.
+- Organization renaming must be planned and approved as a separate pre-migration activity.
+
+**Source Organization Rename Impact**
+
+Renaming an organization can affect repository URLs, GitHub Actions workflows, CODEOWNERS, submodules, scripts, webhooks, GitHub Pages, and external integrations.
+
+Hardcoded organization references are not automatically updated. Where the original organization name is reused at the target, these references may continue to work after migration, provided the required repositories and dependencies are available.
+
+Validate all affected configurations and integrations before finalizing the migration approach.
+
+**Recommended Approach**
+
+For Non-EMU GHEC → EMU GHEC migrations, consider renaming the source organization when retaining the original name at the target is required, subject to name availability and dependency validation.
+
+For GHEC-DR migration scenarios, validate organization name uniqueness within the destination tenant.
+
+**Note:** Organization naming compatibility does not imply that every scenario is supported by the existing organization migration workflow. Refer to Section 2.2 for implemented workflow scenarios.
+
+
 **Organization workflow limitation:** The supplied organization workflow always validates its source through `https://api.github.com`. **GHEC-DR-to-GHEC-DR organization migration is not implemented** in this workflow.
 
 ## 3. Architecture and execution sequence
@@ -134,8 +170,14 @@ Before starting a customer migration, confirm the following:
 - **Network access:** Runner connectivity to GitHub.com and any required `*.ghe.com` tenant API endpoints, plus any endpoints used by GEI.
 - **Tools:** Bash, GitHub CLI (`gh`), GEI extension (`gh gei`), `curl`, `jq`, and Python 3. The workflows install tools on GitHub-hosted runners where specified; preconfigure and test self-hosted runners.
 - **Migration preparation:** A complete repository mapping CSV for repository migrations; target enterprise slug and available target organization name for organization migrations.
-
-**Security practice:** Store PATs in GitHub Actions secrets; never commit tokens, print them in logs, or attach them to support tickets. Restrict access to migration artifacts, which may contain repository names, metadata and operational details. Rotate or revoke migration credentials according to your organization's access policy after cutover.
+- **Organization Naming and Rename Considerations:**
+    **Name Availability:** Verify organization name availability in the target GHEC/GHEC-DR environment.
+    **Source Org Rename:** Assess whether renaming is required to retain the original organization name at the target.
+    **Dependency Validation:** Review repository URLs, GitHub Actions, CODEOWNERS, submodules, webhooks and external integrations.
+    **Name Reuse:** Renamed or deleted organization names may not be immediately available.
+    **Approval:** Validate dependencies and obtain approval before renaming the source organization.
+    **Note:** Treat organization renaming as a separate pre-migration activity.
+- **Security practice:** Store PATs in GitHub Actions secrets; never commit tokens, print them in logs, or attach them to support tickets. Restrict access to migration artifacts, which may contain repository names, metadata and operational details. Rotate or revoke migration credentials according to your organization's access policy after cutover.
 
 ## 6. Secrets and API endpoint configuration
 
@@ -173,7 +215,11 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 
 ### Step 1 — Inventory and mapping
 
-Generate inventory separately, where the script is available:
+The Bash and PowerShell inventory scripts automatically generate repos.csv with seven columns, including the following target mappings:
+
+**target_org** – Defaults to source organization.
+**target_repo** – Defaults to source repository name.
+**target_repo_visibility** – Defaults to source repository visibility.
 
 ```bash
 ./scripts/bash/1_inventory-report.sh
@@ -240,6 +286,16 @@ The organization workflow uses GEI's `migrate-org` operation to create a **new t
 ### Step 1 — Plan the destination
 
 Confirm the target enterprise slug, destination endpoint and **unused** target organization name. The source and target names may be identical **when that name is available on the destination**. The workflow's target check expects a `404` for the destination organization; a `200` causes the workflow to stop. Other unexpected responses also stop execution.
+
+**Organization Naming and Rename Approach**
+
+- Verify target organization name availability before initiating migration.
+- For Non-EMU GHEC → EMU GHEC, consider renaming the source organization if the original name is required at the target.
+- For GHEC-DR migrations, the same organization name can be used across different tenants, subject to availability.
+- Validate repository references, workflows and external integrations before renaming.
+- Perform source organization renaming as a separate, approved pre-migration activity.
+
+**Note:** The organization migration workflow creates a new target organization and does not migrate into an existing organization.
 
 ### Step 2 — Start the workflow
 
@@ -337,6 +393,8 @@ The supplied workflows provide automation and evidence, but the following distin
 - [ ] Validate the committed scripts and GEI CLI behavior for the chosen scenario.
 - [ ] Run a single-repository or nonproduction pilot and review the full migration evidence.
 - [ ] Establish change window, communications, exception handling and recovery plan.
+- [ ] Assess source organization rename impact on repository references, workflows and integrations.
+- [ ] Verify auto-populated target mappings in `repos.csv`.
 
 ### During execution
 
