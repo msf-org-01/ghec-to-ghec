@@ -24,7 +24,8 @@ function validate_org {
 log_info "Validating organization '$ORG'..."
 validate_org
 # Keep old header exactly same
-[System.IO.File]::WriteAllText((Join-Path (Get-Location) $OUT_FILE), "source_org,source_repo,repo_url,repo_size_MB`n", [System.Text.UTF8Encoding]::new($false))
+
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) $OUT_FILE), "source_org,source_repo,repo_url,repo_size_MB,target_org,target_repo,target_repo_visibility`n", [System.Text.UTF8Encoding]::new($false))
 $url = "$API_BASE/orgs/$ORG/repos?per_page=100&type=all"
 $repo_count = 0
 while ($url) {
@@ -34,7 +35,14 @@ while ($url) {
     $repos = @($result.body | ConvertFrom-Json)
     foreach ($repo in $repos) {
         $size = [math]::Round(([double]$repo.size / 1024),2,[MidpointRounding]::AwayFromZero)
-        $line = "$($repo.owner.login),$($repo.name),$($repo.html_url),$size`n"
+        $targetOrg = $repo.owner.login
+        $targetRepo = $repo.name
+        $targetVisibility = $repo.visibility
+
+        if ($targetVisibility -notin @('public', 'private', 'internal')) {
+            $targetVisibility = if ($repo.private) { 'private' } else { 'public' }
+        }
+        $line = "$($repo.owner.login),$($repo.name),$($repo.html_url),$size,$targetOrg,$targetRepo,$targetVisibility`n"
         [System.IO.File]::AppendAllText((Join-Path (Get-Location) $OUT_FILE),$line,[System.Text.UTF8Encoding]::new($false))
         $repo_count++
     }
