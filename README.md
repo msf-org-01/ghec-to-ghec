@@ -179,7 +179,22 @@ Before starting a customer migration, confirm the following:
     **Note:** Treat organization renaming as a separate pre-migration activity.
 - **Security practice:** Store PATs in GitHub Actions secrets; never commit tokens, print them in logs, or attach them to support tickets. Restrict access to migration artifacts, which may contain repository names, metadata and operational details. Rotate or revoke migration credentials according to your organization's access policy after cutover.
 
-## 6. Secrets and API endpoint configuration
+### 6. Personal Access Token (PAT) Requirements
+Configure separate `SOURCE_PAT` and `TARGET_PAT` secrets with the following scopes based on the migration type.
+
+| Migration Type | Required PAT Scopes |
+|---|---|
+| **Repository-to-Repository Migration** | `admin:org`, `repo`, `user:email`, `workflow` |
+| **Organization-to-Organization Migration** | `admin:enterprise`, `admin:org`, `repo`, `user:email`, `workflow` |
+
+**Important Notes:**
+- Configure `SOURCE_PAT` and `TARGET_PAT` with the applicable scopes and permissions.
+- For organization-to-organization migration, include the additional `admin:enterprise` scope.
+- If SAML SSO is enabled, authorize the PATs using **Configure SSO → Authorize**.
+- Store the PATs securely as GitHub Actions secrets.
+- Never expose PAT values in scripts or logs.
+
+## 7. Secrets and API endpoint configuration
 
 Configure repository or organization Actions secrets in **Settings → Secrets and variables → Actions** (subject to your organization's secret access policy).
 
@@ -211,7 +226,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 
 `200` means the token authenticated to this endpoint. It does **not** prove that the token can export a source repository or that GEI will route archive requests to the correct endpoint.
 
-## 7. Repository migration: operator runbook
+## 8. Repository migration: operator runbook
 
 ### Step 1 — Inventory and mapping
 
@@ -279,7 +294,7 @@ Example self-hosted runner selector:
 
 **Acceptance rule:** A green GitHub Actions job is not a substitute for checking per-repository status and validation artifacts. The workflow invokes a separate shell script whose exact exit-code handling was not included in the supplied references. Sign off only after inspecting evidence for **all** intended repositories and resolving exceptions.
 
-## 8. Organization migration: operator runbook
+## 9. Organization migration: operator runbook
 
 The organization workflow uses GEI's `migrate-org` operation to create a **new target organization** within the specified target enterprise. It is not a general-purpose synchronization workflow for an existing destination organization.
 
@@ -328,7 +343,7 @@ The bracketed argument above is **illustrative** and is supplied only for a DR t
 
 **Stage 3 — Post-migration validation:** Retrieves source and target organization records and paginated repository inventories. It compares repository counts, names, visibility, default branch and archived state. It produces repository-level discrepancy rows and an overall pass/fail result. The GEI-created `gei-migration-results` repository is excluded from target parity comparison. **This is high-level metadata parity validation**, not a full comparison of commits, pull requests, issues, teams, memberships, secrets or branch protection rules.
 
-## 9. Outputs, artifacts and audit evidence
+## 10. Outputs, artifacts and audit evidence
 
 | Workflow/stage | Principal files | Artifact naming pattern |
 |---|---|---|
@@ -345,7 +360,7 @@ Artifacts are uploaded using `if: always()` for the configured upload steps, inc
 
 Record the change identifier, workflow run URL and run ID, scenario, source and target organization/tenant, start/end times, approvals, inventory totals, successful and failed repository counts, outstanding discrepancies, validation results, artifact locations, and formal customer/operations sign-off. Store evidence according to customer retention and access-control requirements.
 
-## 10. Troubleshooting and recovery guidance
+## 11. Troubleshooting and recovery guidance
 
 | Symptom | Likely area to investigate | Recommended action |
 |---|---|---|
@@ -364,7 +379,7 @@ Record the change identifier, workflow run URL and run ID, scenario, source and 
 
 **Recovery principle:** Stop further production waves when validation fails. Preserve artifacts, assess whether target objects were partially created, determine the safe retry or cleanup path using GEI guidance and the approved change plan, and rerun only after root-cause review. The supplied workflows do **not** implement automatic rollback.
 
-## 11. Scope boundaries and known implementation considerations
+## 12. Scope boundaries and known implementation considerations
 
 The supplied workflows provide automation and evidence, but the following distinctions are material to production planning:
 
@@ -379,7 +394,7 @@ The supplied workflows provide automation and evidence, but the following distin
 9. **Source DR organization support:** The organization workflow's source checks and post-validation are hardcoded to `https://api.github.com`; do not use it for a DR source without an independently designed and tested extension.
 10. **Operational assurance:** Actual production success, full migration coverage, data parity and rollback capability cannot be inferred from YAML definitions alone.
 
-## 12. Go-live checklist
+## 13. Go-live checklist
 
 ### Before execution
 
